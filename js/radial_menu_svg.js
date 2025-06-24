@@ -1,132 +1,156 @@
-// Simplified RadialMenu using SVG
 export default class RadialMenuSVG {
   /**
-   * @param {RadialMenuOptions} options
+   * @param {Object} options
+   * @param {number} [options.outerCircle=100]
+   * @param {number} [options.innerCircle=40]
+   * @param {number} [options.fontSize=20]
+   * @param {string} [options.fontFamily='FontAwesome']
+   * @param {number} [options.rotation=0]
+   * @param {number} [options.buttonGap=0]
+   * @param {Array<Object>} [options.buttons=[]]
+   * @param {boolean} [options.isFixed=false]
+   * @param {number} [options.posX=0]
+   * @param {number} [options.posY=0]
    */
-  constructor(options = {}) {
-    this.options = {
-      fontFamily: 'FontAwesome',
-      fontSize: 14,
-      innerCircle: 50,
-      outerCircle: 100,
-      rotation: Math.PI / 2,
-      buttonGap: 0,
-      buttons: [],
-      ...options,
-    };
+  constructor({
+    outerCircle = 100,
+    innerCircle = 40,
+    fontSize = 20,
+    fontFamily = 'FontAwesome',
+    rotation = 0,
+    buttonGap = 0,
+    buttons = [],
+    isFixed = false,
+    posX = 0,
+    posY = 0,
+  } = {}) {
+    this.outerCircle = outerCircle;
+    this.innerCircle = innerCircle;
+    this.fontSize = fontSize;
+    this.fontFamily = fontFamily;
+    this.rotation = rotation;
+    this.buttonGap = buttonGap;
+    this.buttons = buttons;
+    this.isFixed = isFixed;
+    this.posX = posX;
+    this.posY = posY;
+    this.radius = outerCircle;
 
-    this.svgNS = 'http://www.w3.org/2000/svg';
-    this.container = document.createElement('div');
-    this.container.style.position = this.options.isFixed ? 'fixed' : 'absolute';
-    this.container.style.zIndex = this.options.zIndex || 9999;
+    this.svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    this.svg.setAttribute("width", outerCircle * 2);
+    this.svg.setAttribute("height", outerCircle * 2);
+    this.svg.style.position = 'fixed';
+    this.svg.style.zIndex = 9999;
+    this.svg.style.pointerEvents = 'none';
 
-    this.svg = document.createElementNS(this.svgNS, 'svg');
-    this.svg.setAttribute('role', 'menu');
-    this.svg.setAttribute('aria-label', 'Radial Menu');
-    this.container.appendChild(this.svg);
-    document.body.appendChild(this.container);
+    this.menuGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    this.menuGroup.setAttribute("transform", `translate(${outerCircle}, ${outerCircle})`);
+    this.svg.appendChild(this.menuGroup);
+    document.body.appendChild(this.svg);
 
-    this.draw();
-    if (!this.options.isFixed) this.attachContextEvent();
+    this.render();
+
+    if (!isFixed) {
+      this.hide();
+      this.bindEvents();
+    } else {
+      this.setPos(posX, posY);
+      this.show();
+    }
   }
 
-  draw() {
-    const {
-      innerCircle, outerCircle, rotation, buttons, fontFamily, fontSize,
-      backgroundColor = '#EEE', textColor = '#000', borderColor = '#FFF', buttonGap
-    } = this.options;
+  render() {
+    const angleStep = (2 * Math.PI) / this.buttons.length;
 
-    const cx = outerCircle;
-    const cy = outerCircle;
-    const size = outerCircle * 2;
-    this.svg.setAttribute('width', size);
-    this.svg.setAttribute('height', size);
-    this.svg.innerHTML = '';
+    this.menuGroup.innerHTML = '';
+    this.menuGroup.setAttribute("font-family", this.fontFamily);
+    this.menuGroup.setAttribute("font-size", this.fontSize);
+    this.menuGroup.setAttribute("text-anchor", "middle");
+    this.menuGroup.setAttribute("dominant-baseline", "middle");
 
-    const step = (2 * Math.PI) / buttons.length;
-    const gap = buttonGap || 0;
+    this.buttons.forEach((btn, i) => {
+      const startAngle = i * angleStep + this.rotation + this.buttonGap;
+      const endAngle = (i + 1) * angleStep + this.rotation - this.buttonGap;
 
-    buttons.forEach((btn, i) => {
-      const start = i * step + rotation + gap;
-      const end = start + step - 2 * gap;
+      const x1 = Math.cos(startAngle) * this.outerCircle;
+      const y1 = Math.sin(startAngle) * this.outerCircle;
+      const x2 = Math.cos(endAngle) * this.outerCircle;
+      const y2 = Math.sin(endAngle) * this.outerCircle;
+      const x3 = Math.cos(endAngle) * this.innerCircle;
+      const y3 = Math.sin(endAngle) * this.innerCircle;
+      const x4 = Math.cos(startAngle) * this.innerCircle;
+      const y4 = Math.sin(startAngle) * this.innerCircle;
 
-      const largeArc = end - start > Math.PI ? 1 : 0;
-      const rOuter = outerCircle;
-      const rInner = innerCircle;
+      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      const largeArcFlag = endAngle - startAngle > Math.PI ? 1 : 0;
 
-      const x1 = cx + rOuter * Math.cos(start);
-      const y1 = cy + rOuter * Math.sin(start);
-      const x2 = cx + rOuter * Math.cos(end);
-      const y2 = cy + rOuter * Math.sin(end);
-      const x3 = cx + rInner * Math.cos(end);
-      const y3 = cy + rInner * Math.sin(end);
-      const x4 = cx + rInner * Math.cos(start);
-      const y4 = cy + rInner * Math.sin(start);
+      const d = [
+        `M ${x1} ${y1}`,
+        `A ${this.outerCircle} ${this.outerCircle} 0 ${largeArcFlag} 1 ${x2} ${y2}`,
+        `L ${x3} ${y3}`,
+        `A ${this.innerCircle} ${this.innerCircle} 0 ${largeArcFlag} 0 ${x4} ${y4}`,
+        'Z'
+      ].join(' ');
 
-      const pathData = `M ${x1} ${y1}
-        A ${rOuter} ${rOuter} 0 ${largeArc} 1 ${x2} ${y2}
-        L ${x3} ${y3}
-        A ${rInner} ${rInner} 0 ${largeArc} 0 ${x4} ${y4}
-        Z`;
-
-      const path = document.createElementNS(this.svgNS, 'path');
-      path.setAttribute('d', pathData);
-      path.setAttribute('fill', btn.backgroundColor || backgroundColor);
-      path.setAttribute('stroke', btn.borderColor || borderColor);
-      path.setAttribute('tabindex', '0');
-      path.setAttribute('role', 'menuitem');
-      path.setAttribute('aria-label', btn.text);
+      path.setAttribute("d", d);
+      path.setAttribute("fill", btn.backgroundColor || '#eee');
+      path.setAttribute("stroke", btn.borderColor || '#fff');
+      path.setAttribute("role", "menuitem");
+      path.setAttribute("tabindex", "0");
       path.style.cursor = 'pointer';
-      path.addEventListener('click', btn.action);
-      this.svg.appendChild(path);
+      path.style.pointerEvents = 'auto';
+      path.addEventListener("click", btn.action);
 
-      const midAngle = start + (end - start) / 2;
-      const labelR = rInner + (rOuter - rInner) / 2;
-      const lx = cx + labelR * Math.cos(midAngle);
-      const ly = cy + labelR * Math.sin(midAngle) + fontSize / 3;
-
-      const text = document.createElementNS(this.svgNS, 'text');
-      text.setAttribute('x', lx);
-      text.setAttribute('y', ly);
-      text.setAttribute('fill', btn.textColor || textColor);
-      text.setAttribute('font-size', fontSize);
-      text.setAttribute('font-family', fontFamily);
-      text.setAttribute('text-anchor', 'middle');
-      text.setAttribute('alignment-baseline', 'middle');
+      const midAngle = (startAngle + endAngle) / 2;
+      const rMid = (this.innerCircle + this.outerCircle) / 2;
+      const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
       text.textContent = btn.text;
+      text.setAttribute("x", Math.cos(midAngle) * rMid);
+      text.setAttribute("y", Math.sin(midAngle) * rMid);
+      text.setAttribute("fill", btn.textColor || '#000');
       text.style.pointerEvents = 'none';
 
-      this.svg.appendChild(text);
+      this.menuGroup.appendChild(path);
+      this.menuGroup.appendChild(text);
     });
   }
 
   setPos(x, y) {
-    this.container.style.left = `${x}px`;
-    this.container.style.top = `${y}px`;
-  }
-
-  attachContextEvent() {
-    document.addEventListener('contextmenu', e => {
-      e.preventDefault();
-      this.setPos(e.clientX - this.options.outerCircle, e.clientY - this.options.outerCircle);
-      this.container.style.display = 'block';
-    });
-
-    document.addEventListener('click', () => {
-      this.container.style.display = 'none';
-    });
+    this.svg.style.left = `${x - this.radius}px`;
+    this.svg.style.top = `${y - this.radius}px`;
   }
 
   show() {
-    this.container.style.display = 'block';
+    this.svg.style.display = 'block';
   }
 
   hide() {
-    this.container.style.display = 'none';
+    this.svg.style.display = 'none';
   }
 
-  updateButtons(buttons) {
-    this.options.buttons = buttons;
-    this.draw();
+  bindEvents() {
+    document.addEventListener("contextmenu", (e) => {
+      e.preventDefault();
+      this.setPos(e.clientX, e.clientY);
+      this.show();
+    });
+
+    document.addEventListener("click", () => this.hide());
+
+    // Long press for iOS
+    let longPressTimer;
+    document.addEventListener("touchstart", (e) => {
+      if (e.touches.length !== 1) return;
+      longPressTimer = setTimeout(() => {
+        const touch = e.touches[0];
+        this.setPos(touch.clientX, touch.clientY);
+        this.show();
+      }, 500);
+    });
+
+    document.addEventListener("touchend", () => {
+      clearTimeout(longPressTimer);
+    });
   }
 }
+
